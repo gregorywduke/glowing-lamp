@@ -10,42 +10,54 @@ from openpyxl import load_workbook
 
 print('==============================================================')
 print('Welcome! Make sure to place your files in the "data" directory')
+print('! NOTE - IF FIRST TIME RUN, MAKE COPIES OF ALL FILES BEFOREHAND.')
 print('-----------------------------------')
 print('Please select an option:')
 print('1. Update rents')
 print('2. Add new property')
-#option = input('Your option: ')
-option = '1'
+option = input('Your option: ')
 
 if option == '1':
     print('You chose to update rent values.')
     print('-----------------------------------')
 
+    wb = load_workbook('Lbk Comp.xlsx')
+    ws = wb['Comps']
+
     # Will run once for each file in data directory
     for file in os.listdir('data'):
         print('PROCESSING FILE: ', file)
 
-        # Open "Lbk Comp" Excel file
-        wb = load_workbook('data/' + file)
-        ws = wb.active
+        # Open "Lbk Comp" Excel file with the pandas library
+        df = pd.read_excel('data/' + file)
+        # Include only columns we care about
+        df = df[['Avg SF', 'Avg Asking Rent/Unit']]
 
-        # Locate "Avg Asking Rent/Unit" column
-        rent_col = None
-        for col in ws.iter_cols(1, ws.max_column):
-            header = col[0].value
-            if header == 'Avg Asking Rent/Unit':
-                rent_col = col
-                break
+        # Exclude all data below blank row
+        null_row = df.index[df.isnull().all(axis=1)][0]
+        df = df.loc[:null_row - 1]
 
-        # If rent column exists
-        if rent_col:
-            # Create list of all values in rent column
-            # Uses list comprehension, ignores empty cells
-            all_rent = [cell.value for cell in rent_col if cell.value is not None]
+        # Now, we need to find the matching block in "Lbk Comp"
+        # We do this by cycling thru col G to find matching SQFT
+        for cell in ws['D']:
+            if cell.value == int(df['Avg SF'].iloc[0]):
+                # We find the first row of the block
+                target = cell.row
 
-            df = pd.DataFrame(all_rent[1:], columns=['Avg Asking Rent/Unit'])
+        # First, we create a column that starts at our target cell -
+        # The cell in Comp that matches SQFT in PID file
+        col_C = ws['C'][target - 1:]
+        # Then, we go thru each row in the apartment block and
+        # update the rent using the data from the PID file
+        for i, cell in enumerate(col_C):
+            if i < len(df):
+                cell.value = df['Avg Asking Rent/Unit'].iloc[i]
 
-        print(df.head())
 
+    # Save changes to file
+    wb.save('Lbk Comp.xlsx')
+
+if option == '2':
+    print('This option is not implemented yet.')
 
 
